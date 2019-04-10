@@ -1,0 +1,83 @@
+---
+title: "Under-the-influence Arrests in Seattle, WA"
+author: "Igor Morzan"
+date: "4/9/2019"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+library(tidyverse)
+library(sf)
+library(fs)
+library(gt)
+library(ggthemes)
+library(png) 
+library(gganimate)
+library(transformr)
+
+seattle <- read_rds(url("https://stacks.stanford.edu/file/druid:tr137st9964/tr137st9964_wa_seattle_2019_02_25.rds"))
+
+# Downloads the tgz file from the Stanford Open Policing Project
+
+download.file(url = "https://stacks.stanford.edu/file/druid:tr137st9964/tr137st9964_wa_seattle_shapefiles_2019_02_25.tgz", destfile = "shapes_question5.tgz", 
+              quiet = TRUE)
+
+untar("shapes_question5.tgz")
+
+# Assings the shp file to variable shapes_question5 to reference 
+
+shapes_question5 <- read_sf("wa_seattle_shapefiles/SPD_Beats_WGS84.shp")
+
+# Deletes the unnecessary files and directories
+
+file_delete(c("shapes_question5.tgz", "wa_seattle_shapefiles/"))
+
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r, echo=FALSE, warning=FALSE}
+# Creates a new variable of under-influence-arrests by calling Seattle dataset
+under_influence_arrest <- seattle %>%
+  
+  # Filters for the appropriate latitude and longitude
+  filter(lat >= 47.5, lat <= 47.8) %>%
+  filter(lng <= -122.2) %>%
+  
+  # Filters to see if arrest is made
+  filter(arrest_made) %>%
+  
+  # Checks if age is greater than 18 but less than 30
+  filter(subject_age > 18) %>%
+  filter(subject_age < 30) %>%
+  
+  # Checks if the violation/stop is an under-the-influence stop
+  filter(violation == "450: DRIVING UNDER THE INFLUENCE") %>%
+  
+  # Removes the NA latitude and longitude values
+  drop_na(lat, lng)
+
+# Converts the under_influence_arrest dataset to an sf object in order to map it
+# Coords is use to grab the names of the numeric columns holding coordinates
+
+under_influence_locations <- st_as_sf(under_influence_arrest,
+  coords = c("lng", "lat"), 
+  crs = 4326)
+
+# Ggplot is used to graph the data
+# Data is shapes_question5, which was created from the shapes file from line 47 in the code
+
+ggplot(data = shapes_question5) +
+  geom_sf() +
+  
+  geom_sf(data = under_influence_locations) +
+  theme_map() +
+  
+  # Appropriate labels for clearer understanding of data
+    labs(title = "Locations of Under-the-Influence Arrests in Seattle, WA",
+       subtitle = "Depicts under-the-influence arrests of individuals aged from 18 to 30 from 2006-2015",
+       caption = "Source: Stanford Open Policing Project") +
+  
+  # Creaters the dynamic map by mapping the arrests by calling transition_states on dates
+  
+  transition_states(date) 
+```
